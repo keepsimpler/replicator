@@ -1,0 +1,5 @@
+.env
+.vscode
+data
+replicator.egg-info
+__pycache__
