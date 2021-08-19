@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 from torch.nn.parameter import Parameter
@@ -19,8 +21,8 @@ class ReplicatorLayer(nn.Module):
     def __init__(self, max_sentence_len: int):
         super().__init__()
 
-        queries_weight = torch.randn(max_sentence_len, max_sentence_len)
-        keys_weight = torch.randn(max_sentence_len, max_sentence_len)
+        queries_weight = torch.randn(max_sentence_len, max_sentence_len) / math.sqrt(max_sentence_len)
+        keys_weight = torch.randn(max_sentence_len, max_sentence_len) / math.sqrt(max_sentence_len)
         self.queries_weight = Parameter(queries_weight)
         self.keys_weight = Parameter(keys_weight)
         self.max_sentence_len = max_sentence_len

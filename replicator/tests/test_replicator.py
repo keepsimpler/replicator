@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from replicator.models import ReplicatorLayer, ReplicatorGPT
+from replicator.models.replicator import ReplicatorLayer, ReplicatorGPT
 from replicator.datasets import FakeLMDataset
 
 def test_replicator_gpt():
