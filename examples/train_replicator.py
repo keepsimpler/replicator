@@ -36,7 +36,7 @@ def evaluate_perplexity(net, validate_dataloader):
         metric.add(loss, 1)
     loss = metric[0] / metric[1]
     perplexity = math.exp(metric[0] / metric[1])
-    return perplexity, loss    
+    return perplexity, loss
 
 # %%
 from accelerate import Accelerator
