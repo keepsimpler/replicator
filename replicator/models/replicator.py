@@ -1,10 +1,67 @@
 import math
+from typing import Union
+from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from torch import einsum
+from einops import rearrange, reduce
+
+
+@dataclass
+class DistributionConfig:
+    dim1: int
+    dim2: int
+    scale: Union[float, None] = None
+
+@dataclass
+class UniformConfig(DistributionConfig):
+    minimum: float = field(init=False)
+    maximum: float = field(init=False)
+
+    def __post_init__(self):
+        if self.scale is None:
+            self.scale = 1 / math.sqrt((self.dim1 + self.dim2)/2)
+        self.minimum = - self.scale
+        self.maximum = self.scale
+
+
+@dataclass
+class NormalConfig(DistributionConfig):
+    mean: float = 0.
+    std: float = field(init=False)
+
+    def __post_init__(self):
+        if self.scale is None:
+            self.scale = 1 / math.sqrt((self.dim1 + self.dim2)/2)
+        self.std = self.scale
+
+
+def uniformal_matrix(cfg: UniformConfig):
+    "Generate a matrix of size [row, col] uniformly distributed between [minimum, maximum)"
+    assert cfg.minimum < cfg.maximum
+    return (cfg.minimum - cfg.maximum) * torch.rand(cfg.dim1, cfg.dim2) + cfg.maximum
+
+def normal_matrix(cfg: NormalConfig):
+    "Generate a matrix of size [row, col] with normal distribution whose mean and std are given"
+    return torch.normal(cfg.mean, cfg.std, size=(cfg.dim1, cfg.dim2))
+
+
+def add_up_to_non_negative(tensor: torch.Tensor):
+    """
+    Eliminate negative values by adding the minimum value up to zero
+    through by the last dimension.
+    """
+    min_values, _ = tensor.min(dim=-1, keepdim=True)
+    sub_values = torch.minimum(min_values, torch.zeros_like(tensor))
+    return tensor - sub_values
+
+def divide_by_sum(tensor: torch.Tensor):
+    """获得类似于softmax的效果。前提是all values are non negative."""
+    return tensor / tensor.sum(dim=-1, keepdim=True)
 
 class ReplicatorLayer(nn.Module):
     """
@@ -12,86 +69,155 @@ class ReplicatorLayer(nn.Module):
     
     x = x * (A x - x^T A x).
 
-    where the payoff matrix A are determined by ......
-
     Arguments
     ---------
-    max_sentence_len : 
+    prob_dim : int, the dimension size of probability space
+    cfg : weight initialization configuration
+    mask : every probability is only influenced by itself and probabilities before
+    
     """
-    def __init__(self, max_sentence_len: int):
+    def __init__(self, cfg: Union[UniformConfig, NormalConfig], mask: bool=False):
         super().__init__()
 
-        queries_weight = torch.randn(max_sentence_len, max_sentence_len) / math.sqrt(max_sentence_len)
-        keys_weight = torch.randn(max_sentence_len, max_sentence_len) / math.sqrt(max_sentence_len)
-        self.queries_weight = Parameter(queries_weight)
-        self.keys_weight = Parameter(keys_weight)
-        self.max_sentence_len = max_sentence_len
+        if type(cfg) == UniformConfig:
+            weight = uniformal_matrix(cfg)
+        elif type(cfg) == NormalConfig:
+            weight = normal_matrix(cfg)
+        self.weight = Parameter(weight)
 
-    def forward(self, inputs):
-        "`inputs` size (batch_size, max_sentence_len, embedding_size)"
+        self.mask = mask
+        if self.mask:
+            with torch.no_grad():
+                mask_matrix = torch.tril(torch.ones_like(self.weight, dtype=torch.bool), diagonal=0)
+                self.register_buffer("mask_matrix", mask_matrix)
 
-        # repeated `max_sentence_len` times
-        queries_weight_repeated = self.queries_weight.repeat(self.max_sentence_len, 1, 1)
-        for i in range(self.max_sentence_len):
-            queries_weight_repeated[i, :, i+1:] = 0.
-            queries_weight_repeated[i, i+1:, :] = 0.
-
-        keys_weight_repeated = self.keys_weight.repeat(self.max_sentence_len, 1, 1)
-        for i in range(self.max_sentence_len):
-            keys_weight_repeated[i, :, i+1:] = 0.
-            keys_weight_repeated[i, i+1:, :] = 0.
-
-        # b --> batch_size, m --> embedding_size, n --> max_sentence_len,  p --> max_sentence_len
-        queries = torch.einsum('b n m, ... n p -> b ... m p', inputs, queries_weight_repeated)
-
-        # b --> batch_size, m --> embedding_size, n --> max_sentence_len,  p --> max_sentence_len
-        keys = torch.einsum('b n m, ... n p -> b ... p m', inputs, keys_weight_repeated)
-
-        # m --> embedding_size, n --> max_sentence_len, q --> embedding_size
-        attentions = torch.einsum('... m n, ... n q -> ... m q', queries, keys)
-
-        # compute Ax, to get fitnesses
-        # m --> embedding_size, n --> max_sentence_len, p --> embedding_size,
-        fitnesses = torch.einsum('... n m p, b n p -> ... n m', attentions, inputs)
-
-        # compute x * Ax, then summarize through the `embedding_size` dim, in order to get average fitness
-        # m --> embedding_size
-        avg_fitness = torch.einsum('... m, ... m -> ...', inputs, fitnesses)
-
-        # unsqueeze the `embedding_size` dim
-        avg_fitness = avg_fitness.unsqueeze(-1)
-
-        # compute Ax - x * Ax, to get the net fitnesses
+    def forward(self, x):
+        weight = self.weight
+        if self.mask:
+            weight = weight.masked_fill(self.mask_matrix, 0)
+        # 1. compute Ax
+        fitnesses = torch.einsum('m n, ... n -> ... m', weight, x)
+        # 2. compute x * Ax, Hadamard product (element-wise product) between x and Ax
+        #    then, summed through $n$ dimension
+        avg_fitness = torch.einsum('... m, ... m -> ...', x, fitnesses)
+        # 3. unsqueeze at the $n$ dimension
+        avg_fitness = rearrange(avg_fitness, '... -> ... 1')
+        # 3. compute Ax - x * Ax, the net fitnesses
         net_fitnesses = fitnesses - avg_fitness
+        # 4. compute  derivative of x
+        x_derivative = x * net_fitnesses
+        # 5. Eluer method of ode
+        x_next = x + x_derivative
+        # 6. 
+        x_next = F.relu(x_next)
+        # x_next = add_up_to_non_negative(x_next)
+        return x_next
 
-        # compute derivative of inputs
-        inputs_derivate = inputs * net_fitnesses
+def swap_stochastic(x):
+    "交换最后两个维度，然后将最后一个维度转换为概率空间的分布"
+    # 1. swap the last two dimensions
+    x = rearrange(x, '... m n -> ... n m')
+    # 2. marginal probability of the last dimension
+    marginal_prob = reduce(x, '... n m -> ... n', 'sum')
+    marginal_prob = rearrange(marginal_prob, '... n -> ... n 1')
+    y = x / marginal_prob
+    # y[y != y] = 0
+    y = torch.nan_to_num(y)  # TODO: may need a better work out
+    return y
 
-        # Eluer method of ode
-        inputs_next = inputs + inputs_derivate
+class ReplicatorBlock(nn.Module):
+    def __init__(self, cfg_sentence: Union[UniformConfig, NormalConfig], 
+                cfg_embedding: Union[UniformConfig, NormalConfig], 
+                mask: bool=False):
+        super().__init__()
+        self.replicator_sentence = ReplicatorLayer(cfg_sentence, mask)
+        self.replicator_embedding = ReplicatorLayer(cfg_embedding)
 
-        return inputs_next
+    def forward(self, x):
+        x = self.replicator_embedding(x)
+        x = swap_stochastic(x)
+        x = self.replicator_sentence(x)
+        x = swap_stochastic(x)
+        return x
 
+class StochasticEmbedding(nn.Module):
+    """
+    与nn.Embedding类似，只是weight矩阵通过softmax
+    才能作为ReplicatorLayer的输入
+    """
+    def __init__(self, cfg: Union[UniformConfig, NormalConfig]):
+        super().__init__()
+
+        if type(cfg) == UniformConfig:
+            weight = uniformal_matrix(cfg)
+        elif type(cfg) == NormalConfig:
+            weight = normal_matrix(cfg)
+        self.weight = Parameter(weight)
+
+        self.softmax = nn.Softmax(dim=-1)
+        self.register_buffer("padding_idx_tensor", torch.tensor([0]))
+
+    def forward(self, x):
+        weight = self.softmax(self.weight)
+        # weight[0] = 0
+        weight = torch.index_fill(weight, 0, self.padding_idx_tensor, 0.)
+        y = F.embedding(x, weight, padding_idx=0)
+        return y
+
+
+class StochasticProjection(nn.Module):
+    """
+    将最后一个维度为概率空间分布的tensor，通过stochastic matrix转换为更大空间上的概率分布
+    """
+    def __init__(self, cfg: Union[UniformConfig, NormalConfig]):
+        super().__init__()
+
+        if type(cfg) == UniformConfig:
+            weight = uniformal_matrix(cfg)
+        elif type(cfg) == NormalConfig:
+            weight = normal_matrix(cfg)
+        self.weight = Parameter(weight)
+
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x):
+        weight = self.softmax(self.weight)
+        y = F.linear(x, weight)
+        return y
+
+def log_nll_loss(x_prob, target):
+    "输入最后一个维度符合概率空间分布，获得差值"
+    x_prob_log = torch.log(x_prob)
+    loss = F.nll_loss(x_prob_log, target, ignore_index = 0)
+    return loss
 
 class ReplicatorGPT(nn.Module):
-    """
-    Replicator Model similar to GPT model.
-    """
-    def __init__(self, layers_num: int, max_sentence_len: int, vocab_size: int, embedding_size: int):
+    def __init__(self, blocks_num: int, max_sentence_len: int, vocab_size: int, embedding_size: int,
+                mask: bool=True):
         super().__init__()
-        # weight的N(0,1)分布是否合适，因为后面又softmax操作 ？
-        self.embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
-        self.softmax = nn.Softmax(dim=-1)
-        replicator_layers = [ReplicatorLayer(max_sentence_len) for _ in range(layers_num)]
-        self.replicator_layers = nn.Sequential(*replicator_layers)
-        self.projection = nn.Linear(embedding_size, vocab_size, bias=False)
-        self.loss = nn.CrossEntropyLoss(ignore_index=0)
 
-    def forward(self, inputs, targets, masks):
-            inputs_embedding = self.embedding(inputs)
-            inputs_embedding[torch.logical_not(masks)] = float('-inf')
-            inputs_embedding_softmax = torch.nan_to_num(self.softmax(inputs_embedding))
-            outputs = self.replicator_layers(inputs_embedding_softmax)
-            logit = self.projection(outputs)
-            logit = logit.permute(0,2,1)
-            return self.loss(logit, targets)
+        cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
+        self.stochastic_embedding = StochasticEmbedding(cfg)
+
+        cfg_sentence = UniformConfig(dim1=max_sentence_len, dim2=max_sentence_len)
+        cfg_embedding = UniformConfig(dim1=embedding_size, dim2=embedding_size)
+        replicator_blocks = [ReplicatorBlock(cfg_sentence, cfg_embedding, mask)
+                             for _ in range(blocks_num)]
+        self.replicator_blocks = nn.Sequential(*replicator_blocks)
+
+        cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
+        self.stochastic_projection = StochasticProjection(cfg)
+
+    def forward(self, x, target):
+        # (batch_size, max_sentence_len)
+        x = self.stochastic_embedding(x)  
+        # --> (batch_size, max_sentence_len, embedding_size)
+        x = self.replicator_blocks(x)
+        # --> (batch_size, max_sentence_len, embedding_size)
+        x = self.stochastic_projection(x)
+        # --> (batch_size, max_sentence_len, vocab_size)
+        tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
+        x = x[tokens_probabilities_exist, :]
+        target = target[tokens_probabilities_exist]
+        loss = log_nll_loss(x, target)
+        return loss

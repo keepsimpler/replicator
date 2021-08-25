@@ -17,5 +17,6 @@ setuptools.setup(
     install_requires=[
         "torch >=1.8",
         "einops >=0.3"
+        "accelerate"
     ]
 )

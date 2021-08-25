@@ -3,44 +3,68 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from replicator.models.replicator2 import uniformal_matrix, ReplicatorLayer, StochasticEmbedding, StochasticProjection, UniformConfig, NormalConfig
+from replicator.models.replicator2 import Replicator2Layer, Replicator2GPT
 from replicator.datasets import FakeLMDataset
 
-def test_uniformal_matrix():
-    "当均匀分布矩阵足够大时，它的最大元素的值应该逼近均匀分布上限值，最小元素的值应该逼近均匀分布下限值"
-    uniformConfig = UniformConfig(minimum=-2, maximum=2)
-    m = uniformal_matrix(100, 100, uniformConfig)
-    assert 2 - 1e-2 <= torch.max(m) <= 2
-    assert -2 <= torch.min(m) <= -2 + 1e-2
+def test_replicator_gpt():
+    """Replicator Model的输出不能是inf"""
 
-def test_stochastic_embedding():
-    ""
-    x = torch.tensor([[2,1,4,5], [5,8,3,7]])
-    uniformConfig = UniformConfig(minimum=-2, maximum=2)
-    stochastic_embedding = StochasticEmbedding(10, 3, uniformConfig)
-    y = stochastic_embedding(x)
-    # 确认变换之后，该维度所有元素的和等于1
-    assert torch.all(torch.abs(torch.sum(y, dim=-1) - 1.) < 1e-5)
+    training_sentences_num = 128
+    vocab_size = 100
+    max_sentence_len = 64
+    min_sentence_len = 64 // 4
+    training_data = FakeLMDataset(sentences_num=training_sentences_num,
+                    vocab_size=vocab_size, max_sentence_len=max_sentence_len, min_sentence_len=min_sentence_len)
 
-def test_stochastic_embedding_padding_idx():
-    "Index Tensor中值等于0的元素embedding into all zeros"
-    x = torch.tensor([[2, 1, 4, 0, 0], [5, 8, 3, 7, 0]])
-    uniformConfig = UniformConfig(minimum=-2, maximum=2)
-    stochastic_embedding = StochasticEmbedding(10, 3, uniformConfig)
-    y = stochastic_embedding(x)
-    # 确认对应位置的embedding等于zero
-    assert torch.all(y[0, 3:, :] == 0.) and torch.all(y[1, 4, :] == 0.)
+    batch_size = 4
+    embedding_size = 64
+    train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 
-def test_stochastic_projection():
-    ""
-    x = torch.tensor([[2,1,4,5], [5,8,3,7]])
-    uniformConfig = UniformConfig(minimum=-2, maximum=2)
-    stochastic_embedding = StochasticEmbedding(10, 3, uniformConfig)
-    y = stochastic_embedding(x)
-    # 确认变换之后，该维度所有元素的和等于1
-    assert torch.all(torch.abs(torch.sum(y, dim=-1) - 1.) < 1e-5)
 
-    stochastic_projection = StochasticProjection(6, 3, uniformConfig)
-    z = stochastic_projection(y)
-    assert z.shape[-1] == 6
+    inputs, targets, masks = next(iter(train_dataloader))
+
+    layers_num = 4
+    replicator_gpt = Replicator2GPT(layers_num=layers_num, max_sentence_len=max_sentence_len,
+                        vocab_size=vocab_size, embedding_size=embedding_size)
+
+    loss = replicator_gpt(inputs, targets, masks)
+    print(loss)
+    assert not loss.isinf()
+
+def test_replicator_layer():
+    """
+    如果输入是概率空间的一个分布，经过一步Replicator以后，输出也应该是概率空间的一个分布.
+    在`embeding_size`充分大的情况下，经过一步Replicator以后，所有的概率都大于0.
+    """
+
+    training_sentences_num = 128
+    vocab_size = 100
+    max_sentence_len = 128
+    min_sentence_len = 128 // 4
+    training_data = FakeLMDataset(sentences_num=training_sentences_num,
+                    vocab_size=vocab_size, max_sentence_len=max_sentence_len, min_sentence_len=min_sentence_len)
+
+    batch_size = 4
+    train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
+
+    embedding_size = 128
+    # weight的N(0,1)分布是否合适，因为后面又softmax操作 ？
+    embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)   
+
+    softmax = nn.Softmax(dim=-1) 
+
+    inputs, targets, masks = next(iter(train_dataloader))
+    inputs_embedding = embedding(inputs)
+    inputs_embedding[torch.logical_not(masks)] = float('-inf')
+    inputs_embedding_softmax = torch.nan_to_num(softmax(inputs_embedding))
+
+    replicatorLayer = Replicator2Layer(max_sentence_len=max_sentence_len)
+
+    outputs = replicatorLayer(inputs_embedding_softmax)
+
+    # 确认经过一步Replicator之后，仍然是概率空间的分布
+    assert torch.all(torch.abs(torch.sum(outputs[masks], dim=-1) - 1.) < 1e-5)
+    # 确认经过一步Replicator之后，所有概率大于0
+    print(outputs[outputs<0])
+    assert list(outputs[outputs<0]) == []
 
