@@ -1,0 +1,36 @@
+INFO:root:File d:\replicator\.data\WikiText2\wikitext-2-v1.zip already exists.
+INFO:root:Validating hash 542ccefacc6c27f945fb54453812b3cd matches hash of d:\replicator\.data\WikiText2\wikitext-2-v1.zip
+INFO:root:Opening zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/ already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.test.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.valid.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.train.tokens already extracted.
+INFO:root:Finished extracting zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:Creating train data
+INFO:root:File d:\replicator\.data\WikiText2\wikitext-2-v1.zip already exists.
+INFO:root:Validating hash 542ccefacc6c27f945fb54453812b3cd matches hash of d:\replicator\.data\WikiText2\wikitext-2-v1.zip
+INFO:root:Opening zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/ already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.test.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.valid.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.train.tokens already extracted.
+INFO:root:Finished extracting zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:Creating train data
+INFO:root:File d:\replicator\.data\WikiText2\wikitext-2-v1.zip already exists.
+INFO:root:Validating hash 542ccefacc6c27f945fb54453812b3cd matches hash of d:\replicator\.data\WikiText2\wikitext-2-v1.zip
+INFO:root:Opening zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/ already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.test.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.valid.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.train.tokens already extracted.
+INFO:root:Finished extracting zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:Creating valid data
+INFO:root:File d:\replicator\.data\WikiText2\wikitext-2-v1.zip already exists.
+INFO:root:Validating hash 542ccefacc6c27f945fb54453812b3cd matches hash of d:\replicator\.data\WikiText2\wikitext-2-v1.zip
+INFO:root:Opening zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/ already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.test.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.valid.tokens already extracted.
+INFO:root:d:\replicator\.data\WikiText2\wikitext-2/wiki.train.tokens already extracted.
+INFO:root:Finished extracting zip file d:\replicator\.data\WikiText2\wikitext-2-v1.zip.
+INFO:root:Creating valid data
