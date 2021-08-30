@@ -50,6 +50,7 @@ def net_statistics(net: torch.nn.Module):
         if param.grad is not None:
             net_statistics.append({
                 'name': name,
+                'num': torch.prod(torch.tensor(param.size())),
                 'mean': torch.mean(param.data),
                 'std': torch.std(param.data),
                 'grad.abs.mean': torch.mean(torch.abs(param.grad)),
