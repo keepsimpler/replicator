@@ -10,6 +10,8 @@ from torch.nn.parameter import Parameter
 from torch import einsum
 from einops import rearrange, reduce
 
+import logging
+logging.basicConfig(level=logging.INFO, filename='test.log', filemode='w')
 
 @dataclass
 class DistributionConfig:
@@ -178,11 +180,11 @@ class StochasticProjection(nn.Module):
             weight = normal_matrix(cfg)
         self.weight = Parameter(weight)
 
-        self.softmax = nn.Softmax(dim=-1)
+        self.softmax = nn.Softmax(dim=-2)
 
     def forward(self, x):
-        weight = self.softmax(self.weight)
-        y = F.linear(x, weight)
+        # weight = self.softmax(self.weight)
+        y = F.linear(x, self.weight)
         return y
 
 def log_nll_loss(x_prob, target):
@@ -196,8 +198,8 @@ class ReplicatorGPT(nn.Module):
                 mask: bool=True):
         super().__init__()
 
-        cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
-        self.stochastic_embedding = StochasticEmbedding(cfg)
+        # cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
+        # self.stochastic_embedding = StochasticEmbedding(cfg)
 
         cfg_sentence = UniformConfig(dim1=max_sentence_len, dim2=max_sentence_len)
         cfg_embedding = UniformConfig(dim1=embedding_size, dim2=embedding_size)
@@ -207,10 +209,18 @@ class ReplicatorGPT(nn.Module):
 
         cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
         self.stochastic_projection = StochasticProjection(cfg)
+        
+        # weight的N(0,1)分布是否合适，因为后面又softmax操作 ？
+        self.embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
+        self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x, target):
+    def forward(self, x, target, masks):
+        inputs_embedding = self.embedding(x)
+        inputs_embedding[torch.logical_not(masks)] = float('-inf')
+        x = torch.nan_to_num(self.softmax(inputs_embedding))
+
         # (batch_size, max_sentence_len)
-        x = self.stochastic_embedding(x)  
+        # x = self.stochastic_embedding(x)  
         # --> (batch_size, max_sentence_len, embedding_size)
         x = self.replicator_blocks(x)
         # --> (batch_size, max_sentence_len, embedding_size)
@@ -219,5 +229,11 @@ class ReplicatorGPT(nn.Module):
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
         x = x[tokens_probabilities_exist, :]
         target = target[tokens_probabilities_exist]
-        loss = log_nll_loss(x, target)
+        if not torch.all(tokens_probabilities_exist == masks):
+            probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
+            probabilities = torch.numel(masks)
+            diff = probabilities_all_zeros / probabilities
+            logging.info(f'probabilities_all_zeros: {probabilities_all_zeros}, probabilities: {probabilities},  diff: {diff}')
+        loss = F.cross_entropy(x, target, ignore_index=0)
+        # loss = log_nll_loss(x, target)
         return loss

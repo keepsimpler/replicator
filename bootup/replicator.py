@@ -19,7 +19,7 @@ batch_size = 4
 train_dataloader = DataLoader(training_data, batch_size=batch_size, shuffle=True)
 # %%
 embedding_size = 3  # 64
-# weight的N(0,1)分布是否合适，因为后面又softmax操作 ？
+# weight的N(0,1)分布是否合适，因为后面有softmax操作 ？
 embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
 # %%
 embedding_data = embedding(training_data[0][0])

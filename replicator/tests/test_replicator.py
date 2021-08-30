@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from replicator.models import uniformal_matrix, ReplicatorLayer, StochasticEmbedding, StochasticProjection, UniformConfig, NormalConfig
+from replicator.models.replicator import uniformal_matrix, ReplicatorLayer, StochasticEmbedding, StochasticProjection, UniformConfig, NormalConfig
+from replicator.models.replicator import ReplicatorGPT
 from replicator.datasets import FakeLMDataset
 
 def test_uniformal_matrix():
@@ -43,4 +44,17 @@ def test_stochastic_projection():
     stochastic_projection = StochasticProjection(uniformConfig)
     z = stochastic_projection(y)
     assert z.shape[-1] == 10
+    # 确认变换之后，该维度所有元素的和等于1
+    # assert torch.all(torch.abs(torch.sum(z, dim=-1) - 1.) < 1e-5)
 
+def test_replicator_gpt_with_backward():
+    x = torch.tensor([[2,1,4,5], [5,8,3,7]])
+    targets = torch.tensor([[1,4,5,7], [8,3,7,1]])
+    masks = torch.tensor([[True,True,True,True],[True,True,True,True]])
+    replicator_gpt = ReplicatorGPT(blocks_num=1, max_sentence_len=4, vocab_size=10, embedding_size=3, mask=True)
+    loss = replicator_gpt(x, targets, masks)
+    loss.backward()
+    # for name, param in replicator_gpt.named_parameters():
+    #     if param.grad is not None:
+    #         print(param.data.sign(), param.grad.sign())
+    print(loss)
