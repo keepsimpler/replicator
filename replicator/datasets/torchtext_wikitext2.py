@@ -30,10 +30,13 @@ class WikiText2Dataset(IterableDataset):
         self.seq_len = seq_len
         self.vocab = vocab
 
+        self.masks = torch.ones(batch_size, seq_len).bool()
+
     def __iter__(self):
         for i in range(self.sequence_num):
             yield self.data[:, i*self.seq_len:(i+1)*self.seq_len], \
-                  self.data[:, i*self.seq_len+1:(i+1)*self.seq_len+1]
+                  self.data[:, i*self.seq_len+1:(i+1)*self.seq_len+1], \
+                  self.masks
 
     def __len__(self):
         return self.sequence_num

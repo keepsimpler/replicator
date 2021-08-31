@@ -19,13 +19,13 @@ def test_transformer_model():
     nhead = 2  # number of heads in nn.MultiheadAttention
     dropout = 0.2  # dropout probability
 
-    transformer_model = TransformerModel(vocab_size, embedding_size, nhead, d_hid, nlayers, dropout)
-
     seq_len = 100
+    transformer_model = TransformerModel(seq_len, vocab_size, embedding_size, nhead, d_hid, nlayers, dropout)
+
     batch_size = 2
     x = torch.randint(1, vocab_size, (batch_size, seq_len))
     x_mask = generate_square_subsequent_mask(seq_len)
-    output = transformer_model(x, x_mask)
+    output = transformer_model(x)
     assert tuple(output.shape) == (batch_size, seq_len, vocab_size)
 
 def test_generate_square_subsequent_mask():

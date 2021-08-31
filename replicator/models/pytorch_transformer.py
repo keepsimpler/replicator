@@ -25,6 +25,10 @@ class PositionalEncoding(nn.Module):
         x = x + self.pe[:,:x.size(1),:]
         return self.dropout(x)
 
+def generate_square_subsequent_mask(sz: int) -> Tensor:
+    """Generates an upper-triangular matrix of -inf, with zeros on diag."""
+    return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
+
 class TransformerModel(nn.Module):
     """
     Arguments
@@ -36,7 +40,7 @@ class TransformerModel(nn.Module):
     nlayers: numer of transformer layers
     dropout: dropout probability
     """
-    def __init__(self, vocab_size: int, embedding_size: int, nhead: int, d_hid: int,
+    def __init__(self, seq_len: int, vocab_size: int, embedding_size: int, nhead: int, d_hid: int,
                  nlayers: int, dropout: float=0.5):
         super().__init__()
         self.model_type = 'Transformer'
@@ -44,8 +48,13 @@ class TransformerModel(nn.Module):
         encoder_layers = TransformerEncoderLayer(embedding_size, nhead, d_hid, dropout, batch_first=True)
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.encoder = nn.Embedding(vocab_size, embedding_size)
-        self.d_model = embedding_size
+        self.d_model, self.vocab_size = embedding_size, vocab_size
         self.decoder = nn.Linear(embedding_size, vocab_size)
+
+        src_mask = generate_square_subsequent_mask(seq_len)
+        self.register_buffer('src_mask', src_mask)
+
+        self.criterion = nn.CrossEntropyLoss()
 
         self.init_weights()
 
@@ -55,7 +64,7 @@ class TransformerModel(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, src: Tensor, src_mask: Tensor) -> Tensor:
+    def forward(self, src: Tensor, targets: Tensor=None, masks: Tensor=None) -> Tensor:
         """
         Args:
             src: Tensor, shape [batch_size, seq_len]
@@ -66,10 +75,10 @@ class TransformerModel(nn.Module):
         """
         src = self.encoder(src) * math.sqrt(self.d_model)
         src = self.pos_encoder(src)
-        output = self.transformer_encoder(src, src_mask)
+        output = self.transformer_encoder(src, self.src_mask)
         output = self.decoder(output)
+        if targets is not None:
+            loss = self.criterion(output.view(-1, self.vocab_size), targets.reshape(-1))
+            return loss
         return output
 
-def generate_square_subsequent_mask(sz: int) -> Tensor:
-    """Generates an upper-triangular matrix of -inf, with zeros on diag."""
-    return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)
