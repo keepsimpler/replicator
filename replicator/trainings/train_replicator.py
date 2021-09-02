@@ -1,40 +1,50 @@
 import math
 
+import logging
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    filename='test.log',
+    filemode='a',
+    datefmt='%Y-%m-%d %H:%M:%S')
+
 import torch
 import torch.nn as nn
 from accelerate import Accelerator
 
-from replicator.utils import Accumulator
+from replicator.utils import Accumulator, net_statistics
 
 class Trainer(object):
 
     def __init__(self, model: nn.Module, dataset, optimizer) -> None:
         super().__init__()
-        # self.model = model
-        # self.dataset = dataset
-        # self.optimizer = optimizer
-
-        self.accelerator = Accelerator()        
-
-        self.model, self.dataset, self.optimizer = self.accelerator.prepare(model, dataset, optimizer)
+        self.model = model
+        self.dataset = dataset
+        self.optimizer = optimizer
 
         self.iterations = 0
 
     def train(self, num_epochs):
-        self.model.train()
+        accelerator = Accelerator()        
+        logging.info('start')
+        model, dataset, optimizer = accelerator.prepare(self.model, self.dataset, self.optimizer)
+        model.train()
         for epoch in range(num_epochs):
-            self.model.train()
+            model.train()
             epoch_metric = Accumulator(2)
-            for inputs, targets, masks in self.dataset:
-                inputs = inputs.to(self.accelerator.device)
-                targets = targets.to(self.accelerator.device)
-                masks = masks.to(self.accelerator.device)
-                self.optimizer.zero_grad()
-                loss = self.model(inputs, targets, masks)
+            for inputs, targets, masks in dataset:
+                inputs = inputs.to(accelerator.device)
+                targets = targets.to(accelerator.device)
+                masks = masks.to(accelerator.device)
+                loss = model(inputs, targets, masks)
+                optimizer.zero_grad()
                 # with torch.autograd.set_detect_anomaly(True):
                 # loss.backward()
-                self.accelerator.backward(loss)
-                self.optimizer.step()
+                accelerator.backward(loss)
+                stats = net_statistics(model)
+                for s in stats:
+                    logging.info(f'stats:\t{s["name"]}\t{s["mean"]}\t{s["std"]}\t{s["grad.abs.mean"]}\t{s["grad.std"]}')
+                optimizer.step()
                 with torch.no_grad():
                     epoch_metric.add(loss, 1)
             loss = epoch_metric[0] / epoch_metric[1]

@@ -11,7 +11,12 @@ from torch import einsum
 from einops import rearrange, reduce
 
 import logging
-logging.basicConfig(level=logging.INFO, filename='test.log', filemode='w')
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    filename='test.log',
+    filemode='a',
+    datefmt='%Y-%m-%d %H:%M:%S')
 
 @dataclass
 class DistributionConfig:
@@ -26,7 +31,8 @@ class UniformConfig(DistributionConfig):
 
     def __post_init__(self):
         if self.scale is None:
-            self.scale = 1 / math.sqrt((self.dim1 + self.dim2)/2)
+            #  Xavier initialization
+            self.scale = math.sqrt(3.) / math.sqrt((self.dim1 + self.dim2)/2)
         self.minimum = - self.scale
         self.maximum = self.scale
 
@@ -38,6 +44,7 @@ class NormalConfig(DistributionConfig):
 
     def __post_init__(self):
         if self.scale is None:
+            #  Xavier initialization
             self.scale = 1 / math.sqrt((self.dim1 + self.dim2)/2)
         self.std = self.scale
 
@@ -217,7 +224,8 @@ class ReplicatorGPT(nn.Module):
     def forward(self, x, target, masks):
         inputs_embedding = self.embedding(x)
         inputs_embedding[torch.logical_not(masks)] = float('-inf')
-        x = torch.nan_to_num(self.softmax(inputs_embedding))
+        # x = torch.nan_to_num(self.softmax(inputs_embedding))
+        x = self.softmax(inputs_embedding)
 
         # (batch_size, max_sentence_len)
         # x = self.stochastic_embedding(x)  
@@ -232,8 +240,8 @@ class ReplicatorGPT(nn.Module):
         if not torch.all(tokens_probabilities_exist == masks):
             probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
             probabilities = torch.numel(masks)
-            diff = probabilities_all_zeros / probabilities
-            logging.info(f'probabilities_all_zeros: {probabilities_all_zeros}, probabilities: {probabilities},  diff: {diff}')
+            diff_percent = probabilities_all_zeros / probabilities
+            logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
         loss = F.cross_entropy(x, target, ignore_index=0)
         # loss = log_nll_loss(x, target)
         return loss
