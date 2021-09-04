@@ -219,6 +219,7 @@ class ReplicatorGPT(nn.Module):
         
         # weight的N(0,1)分布是否合适，因为后面又softmax操作 ？
         self.embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
+        # self.embedding.weight = self.stochastic_projection.weight  # tied weight
         self.softmax = nn.Softmax(dim=-1)
 
     def forward(self, x, target, masks):

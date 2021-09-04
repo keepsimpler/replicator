@@ -20,7 +20,7 @@ def test_train_replicator():
     lr = 1e-2
     optimizer = torch.optim.Adam(replicator_gpt.parameters(), lr=lr)
 
-    num_epochs = 1
+    # num_epochs = 1
 
-    trainer = Trainer(replicator_gpt, wikitext2_train, optimizer)
-    trainer.train(num_epochs)
+    # trainer = Trainer(replicator_gpt, wikitext2_train, optimizer)
+    # trainer.train(num_epochs)
