@@ -55,7 +55,7 @@ def evaluate_perplexity(net, validate_dataloader):
 # %%
 from accelerate import Accelerator
 
-device = "cpu"
+device = "cuda"
 accelerator = Accelerator()
 print(accelerator.device)
 
@@ -136,7 +136,7 @@ for epoch in range(num_epochs):
 
 # %% wikitext2 training with transformer 
 d_hid = embedding_size # dimension of the feedforward network model in nn.TransformerEncoder
-nlayers = 2  # number of nn.TransformerEncoderLayer in nn.TransformerEncoder
+nlayers = 4  # number of nn.TransformerEncoderLayer in nn.TransformerEncoder
 nhead = 2  # number of heads in nn.MultiheadAttention
 dropout = 0.2  # dropout probability
 
@@ -147,8 +147,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
 model, optimizer, wikitext2_train, wikitext2_val = accelerator.prepare(
     model, optimizer, wikitext2_train, wikitext2_val)
-
-# %%
 
 criterion = nn.CrossEntropyLoss()
 
@@ -166,7 +164,7 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         loss = model(inputs, targets)
         # loss = criterion(outputs.view(-1, vocab_size), targets.reshape(-1))
-        print(loss)
+        # print(loss)
         # with torch.autograd.set_detect_anomaly(True):
         # loss.backward()
         accelerator.backward(loss)
