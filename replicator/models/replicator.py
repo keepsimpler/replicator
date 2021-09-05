@@ -10,6 +10,8 @@ from torch.nn.parameter import Parameter
 from torch import einsum
 from einops import rearrange, reduce
 
+import pytorch_lightning as pl
+
 import logging
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -200,9 +202,9 @@ def log_nll_loss(x_prob, target):
     loss = F.nll_loss(x_prob_log, target, ignore_index = 0)
     return loss
 
-class ReplicatorGPT(nn.Module):
+class ReplicatorGPT(pl.LightningModule):
     def __init__(self, blocks_num: int, max_sentence_len: int, vocab_size: int, embedding_size: int,
-                mask: bool=True):
+                 lr: float=5e-3, mask: bool=True):
         super().__init__()
 
         # cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
@@ -221,6 +223,7 @@ class ReplicatorGPT(nn.Module):
         self.embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
         # self.embedding.weight = self.stochastic_projection.weight  # tied weight
         self.softmax = nn.Softmax(dim=-1)
+        self.lr = lr
 
     def forward(self, x, target, masks):
         inputs_embedding = self.embedding(x)
@@ -235,6 +238,12 @@ class ReplicatorGPT(nn.Module):
         # --> (batch_size, max_sentence_len, embedding_size)
         x = self.stochastic_projection(x)
         # --> (batch_size, max_sentence_len, vocab_size)
+        return x
+
+    def training_step(self, batch, batch_idx):
+        x, target, masks = batch
+        x = self.forward(x, target, masks)
+        # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
         x = x[tokens_probabilities_exist, :]
         target = target[tokens_probabilities_exist]
@@ -246,3 +255,10 @@ class ReplicatorGPT(nn.Module):
         loss = F.cross_entropy(x, target, ignore_index=0)
         # loss = log_nll_loss(x, target)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        self.training_step(batch, batch_idx)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr = self.lr)
+        return optimizer

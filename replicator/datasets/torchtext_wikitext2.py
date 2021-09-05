@@ -1,14 +1,17 @@
+from typing import Optional
+
 import torch
 from torch.utils.data import IterableDataset
+from torch.utils.data.dataloader import DataLoader
 from torchtext.datasets import WikiText2
 from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import build_vocab_from_iterator
 
+import pytorch_lightning as pl
+
 
 class WikiText2Dataset(IterableDataset):
-    """
-    
-    """
+    """"""
     def __init__(self, batch_size: int, seq_len: int, split: str) -> None:
         super().__init__()
         raw_text_iter = WikiText2(split=split)
@@ -38,11 +41,34 @@ class WikiText2Dataset(IterableDataset):
                   self.data[:, i*self.seq_len+1:(i+1)*self.seq_len+1], \
                   self.masks
 
-    def __len__(self):
-        return self.sequence_num
+    # def __len__(self):
+    #     return self.sequence_num
 
     def vocab_size(self):
         return len(self.vocab)
+
+class WikiText2DataModule(pl.LightningDataModule):
+    def __init__(self, batch_size: int, seq_len: int):
+        super().__init__()
+        self.batch_size, self.seq_len = batch_size, seq_len
+
+    def setup(self):
+        self.train_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='train')
+        self.val_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='valid')
+
+    def train_dataloader(self):
+        return DataLoader(
+            self.train_data,
+            batch_size=None
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.val_data,
+            batch_size=None
+        )
+
+
 
 if __name__ == '__main__':
     wikitext2 = WikiText2Dataset(batch_size=2, seq_len=10, split='train')

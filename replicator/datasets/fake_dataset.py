@@ -1,7 +1,10 @@
+from typing import Optional
 from dataclasses import dataclass
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+
+import pytorch_lightning as pl
 
 @dataclass
 class FakeLMDataset(Dataset):
@@ -71,4 +74,35 @@ class FakeLMDataset(Dataset):
         target = self.targets[index]
         mask = self.masks[index]
         return input, target, mask
+
+class FakeLMDataModule(pl.LightningDataModule):
+    def __init__(self, train_size: int, val_size: int, batch_size: int,
+                 vocab_size: int, max_sentence_len: int, min_sentence_len: int=None):
+        super().__init__()
+        self.train_size, self.val_size, self.batch_size = train_size, val_size, batch_size
+        self.vocab_size, self.max_sentence_len, self.min_sentence_len = vocab_size, max_sentence_len, min_sentence_len
+
+    def setup(self):
+        self.train_dataset = FakeLMDataset(sentences_num=self.train_size, vocab_size=self.vocab_size,
+                             max_sentence_len=self.max_sentence_len, min_sentence_len=self.min_sentence_len)
+        self.val_dataset = FakeLMDataset(sentences_num=self.val_size, vocab_size=self.vocab_size,
+                             max_sentence_len=self.max_sentence_len, min_sentence_len=self.min_sentence_len)
+
+    def train_dataloader(self):
+         return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            num_workers=0,
+            shuffle=True,
+            drop_last=True,
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.batch_size,
+            num_workers=0,
+            shuffle=False,
+            drop_last=True,
+        )
 
