@@ -254,10 +254,25 @@ class ReplicatorGPT(pl.LightningModule):
             logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
         loss = F.cross_entropy(x, target, ignore_index=0)
         # loss = log_nll_loss(x, target)
+        self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        self.training_step(batch, batch_idx)
+        x, target, masks = batch
+        x = self.forward(x, target, masks)
+        # --> (batch_size, max_sentence_len, vocab_size)
+        tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
+        x = x[tokens_probabilities_exist, :]
+        target = target[tokens_probabilities_exist]
+        if not torch.all(tokens_probabilities_exist == masks):
+            probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
+            probabilities = torch.numel(masks)
+            diff_percent = probabilities_all_zeros / probabilities
+            logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+        loss = F.cross_entropy(x, target, ignore_index=0)
+        # loss = log_nll_loss(x, target)
+        self.log('valid_loss', loss)
+        return loss
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr = self.lr)
