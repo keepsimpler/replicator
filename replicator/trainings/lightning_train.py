@@ -4,11 +4,21 @@ import pytorch_lightning as pl
 
 from replicator.models.replicator import ReplicatorGPT
 from replicator.datasets.torchtext_wikitext2 import WikiText2DataModule
+from replicator.datasets.wikitext103 import WikiText103DataModule
 
 # %%
 batch_size = 16
 seq_len = 64
 
+# %%
+data = WikiText103DataModule(batch_size=batch_size, seq_len=seq_len)
+data.setup()
+train_dataloader = data.train_dataloader()
+# %%
+inputs, targets, masks = next(iter(train_dataloader))
+inputs.shape, targets.shape, masks.shape
+
+# %%
 data = WikiText2DataModule(batch_size=batch_size, seq_len=seq_len)
 data.setup()
 data_loader = data.train_dataloader()
