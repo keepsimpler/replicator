@@ -18,7 +18,6 @@ setuptools.setup(
         "torch >=1.8",
         "einops >=0.3",
         "pytorch_lightning",
-        "datasets",
-        "tokenizers"
+        "transformers",
     ]
 )
