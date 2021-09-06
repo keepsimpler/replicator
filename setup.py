@@ -16,7 +16,9 @@ setuptools.setup(
     python_requires=">=3.6",
     install_requires=[
         "torch >=1.8",
-        "einops >=0.3"
-        "accelerate"
+        "einops >=0.3",
+        "pytorch_lightning",
+        "datasets",
+        "tokenizers"
     ]
 )

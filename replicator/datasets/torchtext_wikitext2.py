@@ -55,6 +55,7 @@ class WikiText2DataModule(pl.LightningDataModule):
     def setup(self):
         self.train_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='train')
         self.val_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='valid')
+        self.vocab_size = self.train_data.vocab_size()
 
     def train_dataloader(self):
         return DataLoader(

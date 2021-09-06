@@ -6,8 +6,8 @@ tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
 # %%
 from tokenizers.trainers import BpeTrainer
 
-trainer = BpeTrainer(vocab_size=20000, min_frequency=2,
-                    special_tokens=["[UNK]", "[CLS]", "[SEP]", "[PAD]", "[MASK]"])
+# vocab_size=20000, min_frequency=2,
+trainer = BpeTrainer(special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"])
 # %%
 from tokenizers.pre_tokenizers import Whitespace
 

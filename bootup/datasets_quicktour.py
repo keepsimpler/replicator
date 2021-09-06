@@ -1,7 +1,7 @@
 # %%
 from datasets import load_dataset
 # %%
-dataset = load_dataset("data/wikitext.py", "wikitext-103-raw-v1")
+dataset = load_dataset("data/wikitext.py", "wikitext-103-raw-v1", cache_dir='data')
 # %%
 dataset
 # %%
