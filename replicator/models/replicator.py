@@ -12,13 +12,13 @@ from einops import rearrange, reduce
 
 import pytorch_lightning as pl
 
-import logging
-logging.basicConfig(
-    format='%(asctime)s %(levelname)-8s %(message)s',
-    level=logging.INFO,
-    filename='test.log',
-    filemode='a',
-    datefmt='%Y-%m-%d %H:%M:%S')
+# import logging
+# logging.basicConfig(
+#     format='%(asctime)s %(levelname)-8s %(message)s',
+#     level=logging.INFO,
+#     filename='test.log',
+#     filemode='a',
+#     datefmt='%Y-%m-%d %H:%M:%S')
 
 @dataclass
 class DistributionConfig:
@@ -251,7 +251,8 @@ class ReplicatorGPT(pl.LightningModule):
             probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
             probabilities = torch.numel(masks)
             diff_percent = probabilities_all_zeros / probabilities
-            logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+            # logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+            self.log('probabilities_all_zeros', diff_percent)
         loss = F.cross_entropy(x, target, ignore_index=0)
         # loss = log_nll_loss(x, target)
         self.log('train_loss', loss)
@@ -268,7 +269,8 @@ class ReplicatorGPT(pl.LightningModule):
             probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
             probabilities = torch.numel(masks)
             diff_percent = probabilities_all_zeros / probabilities
-            logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+            # logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+            self.log('probabilities_all_zeros', diff_percent)
         loss = F.cross_entropy(x, target, ignore_index=0)
         # loss = log_nll_loss(x, target)
         self.log('valid_loss', loss)
