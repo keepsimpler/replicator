@@ -225,11 +225,11 @@ class ReplicatorGPT(pl.LightningModule):
         self.softmax = nn.Softmax(dim=-1)
         self.lr = lr
 
-    def forward(self, x, target, masks):
+    def forward(self, x, masks):
         inputs_embedding = self.embedding(x)
         inputs_embedding[torch.logical_not(masks)] = float('-inf')
-        # x = torch.nan_to_num(self.softmax(inputs_embedding))
-        x = self.softmax(inputs_embedding)
+        x = torch.nan_to_num(self.softmax(inputs_embedding))
+        # x = self.softmax(inputs_embedding)
 
         # (batch_size, max_sentence_len)
         # x = self.stochastic_embedding(x)  
@@ -242,7 +242,7 @@ class ReplicatorGPT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, target, masks = batch
-        x = self.forward(x, target, masks)
+        x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
         x = x[tokens_probabilities_exist, :]
@@ -260,7 +260,7 @@ class ReplicatorGPT(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, target, masks = batch
-        x = self.forward(x, target, masks)
+        x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
         x = x[tokens_probabilities_exist, :]
