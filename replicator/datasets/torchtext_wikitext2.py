@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 
 class WikiText2Dataset(IterableDataset):
     """"""
-    def __init__(self, batch_size: int, seq_len: int, split: str, pred_num:int = 1) -> None:
+    def __init__(self, batch_size: int, seq_len: int, split: str, pred_num: int = 1) -> None:
         super().__init__()
         raw_text_iter = WikiText2(split=split)
         print(len(raw_text_iter))
@@ -53,9 +53,9 @@ class WikiText2DataModule(pl.LightningDataModule):
         super().__init__()
         self.batch_size, self.seq_len = batch_size, seq_len
 
-    def setup(self):
-        self.train_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='train')
-        self.val_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='valid')
+    def setup(self, pred_num: int = 1):
+        self.train_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='train', pred_num=pred_num)
+        self.val_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='valid', pred_num=pred_num)
         self.vocab_size = self.train_data.vocab_size()
 
     def train_dataloader(self):
