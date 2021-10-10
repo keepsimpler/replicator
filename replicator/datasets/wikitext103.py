@@ -8,6 +8,7 @@ from transformers.file_utils import cached_path
 import pytorch_lightning as pl
 
 def shift_one_token(batch):
+    "a collate function, inputs are list of samples"
     batch = torch.stack(batch)
     inputs = batch[:, :-1]
     targets = batch[:, 1:]
