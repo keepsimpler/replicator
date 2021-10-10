@@ -48,6 +48,7 @@ class WikiText2Dataset(IterableDataset):
     def vocab_size(self):
         return len(self.vocab)
 
+
 class WikiText2DataModule(pl.LightningDataModule):
     def __init__(self, batch_size: int, seq_len: int):
         super().__init__()
@@ -58,16 +59,27 @@ class WikiText2DataModule(pl.LightningDataModule):
         self.val_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='valid', pred_num=pred_num)
         self.vocab_size = self.train_data.vocab_size()
 
+    def mask(self, data):
+        inputs, targets, masks = data
+        inputs_mask = torch.rand(inputs.shape) < 0.15
+        inputs_mask[inputs <= 1] = False  # Do not mask special tokens
+        mask_token_id = len(self.train_data.vocab) - 1  # the last token index
+        inputs[inputs_mask] = torch.randint(2, mask_token_id, (inputs_mask.sum().item(),))
+        return inputs, targets, masks
+
+
     def train_dataloader(self):
         return DataLoader(
             self.train_data,
-            batch_size=None
+            batch_size=None,
+            collate_fn=self.mask
         )
 
     def val_dataloader(self):
         return DataLoader(
             self.val_data,
-            batch_size=None
+            batch_size=None,
+            collate_fn=self.mask
         )
 
 
