@@ -357,8 +357,8 @@ class ReplicatorBERT(pl.LightningModule):
             diff_percent = probabilities_all_zeros / probabilities
             # logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
             self.log('probabilities_all_zeros', diff_percent)
-        loss = F.cross_entropy(x, target, ignore_index=0, reduction='none', weight=loss_weights)
-        loss = loss.mean()
+        loss = F.cross_entropy(x, target, ignore_index=0, reduction='none') * loss_weights
+        loss = loss.sum() / loss_weights.sum()
         # loss = log_nll_loss(x, target)
         self.log('train_loss', loss)
         return loss
@@ -378,8 +378,8 @@ class ReplicatorBERT(pl.LightningModule):
             diff_percent = probabilities_all_zeros / probabilities
             # logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
             self.log('probabilities_all_zeros', diff_percent)
-        loss = F.cross_entropy(x, target, ignore_index=0, reduction='none', weight=loss_weights)
-        loss = loss.mean()
+        loss = F.cross_entropy(x, target, ignore_index=0, reduction='none') * loss_weights
+        loss = loss.sum() / loss_weights.sum()
         # loss = log_nll_loss(x, target)
         self.log('valid_loss', loss)
         return loss
