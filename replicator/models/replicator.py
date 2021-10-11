@@ -289,11 +289,11 @@ def mask(inputs, mask_token_id: int, vocab_size: int, p1: float, p2: float, p3: 
   """
   """
   inputs = inputs.clone()
-  inputs_mask1 = torch.rand_like(inputs) < p1
-  inputs_mask2 = inputs_mask1 & (torch.rand_like(inputs) < p2 / p1)
+  inputs_mask1 = torch.rand_like(inputs, dtype=torch.float) < p1
+  inputs_mask2 = inputs_mask1 & (torch.rand_like(inputs, dtype=torch.float) < p2 / p1)
   inputs_mask2[inputs <= 1] = False  # Do not mask special tokens
   inputs[inputs_mask2] = mask_token_id  # 
-  inputs_mask3 = inputs_mask2 & (torch.rand_like(inputs) < p3 / p2)
+  inputs_mask3 = inputs_mask2 & (torch.rand_like(inputs, dtype=torch.float) < p3 / p2)
   inputs[inputs_mask3] = torch.randint(2, vocab_size - 1, (inputs_mask3.sum().item(),), device='cuda:0')
 
   # loss weights
