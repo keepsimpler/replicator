@@ -242,6 +242,7 @@ class ReplicatorGPT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, target, masks = batch
+        target = target.clone()
         x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
@@ -260,6 +261,7 @@ class ReplicatorGPT(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, target, masks = batch
+        target = target.clone()
         x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
