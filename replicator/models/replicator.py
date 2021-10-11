@@ -304,7 +304,8 @@ def mask(inputs, mask_token_id: int, vocab_size: int, p1: float, p2: float, p3: 
 
 
 class ReplicatorBERT(pl.LightningModule):
-    def __init__(self, blocks_num: int, max_sentence_len: int, vocab_size: int, embedding_size: int,
+    def __init__(self, blocks_num: int, max_sentence_len: int, vocab_size: int, embedding_size: int, 
+                 p1: float, p2: float, p3: float,
                  lr: float=5e-3, mask: bool=False):
         super().__init__()
 
@@ -326,6 +327,7 @@ class ReplicatorBERT(pl.LightningModule):
         self.softmax = nn.Softmax(dim=-1)
         self.lr = lr
         self.vocab_size = vocab_size
+        self.p1, self.p2, self.p3 = p1, p2, p3
 
     def forward(self, x, masks):
         inputs_embedding = self.embedding(x)
@@ -344,7 +346,7 @@ class ReplicatorBERT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, target, masks = batch
-        x, loss_weights = mask(x, self.vocab_size-1, self.vocab_size, p1=0.2, p2=0.15, p3=0.03)
+        x, loss_weights = mask(x, 0, self.vocab_size, p1=self.p1, p2=self.p2, p3=self.p3)
         x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
@@ -365,7 +367,7 @@ class ReplicatorBERT(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, target, masks = batch
-        x, loss_weights = mask(x, self.vocab_size-1, self.vocab_size, p1=0.2, p2=0.15, p3=0.03)
+        x, loss_weights = mask(x, 0, self.vocab_size, p1=self.p1, p2=self.p2, p3=self.p3)
         x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
