@@ -297,7 +297,7 @@ def mask(inputs, mask_token_id: int, vocab_size: int, p1: float, p2: float, p3: 
   inputs[inputs_mask3] = torch.randint(2, vocab_size - 1, (inputs_mask3.sum().item(),), device='cuda:0')
 
   # loss weights
-  loss_weights = torch.zeros(inputs.shape)
+  loss_weights = torch.zeros_like(inputs)
   loss_weights[inputs_mask1] = 1
 
   return inputs, loss_weights
