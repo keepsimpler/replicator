@@ -282,3 +282,109 @@ class ReplicatorGPT(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr = self.lr)
         # scheduler = 
         return optimizer
+
+
+
+def mask(inputs, mask_token_id: int, vocab_size: int, p1: float, p2: float, p3: float):
+  """
+  """
+  inputs = inputs.clone()
+  inputs_mask1 = torch.rand(inputs.shape) < p1
+  inputs_mask2 = inputs_mask1 & (torch.rand(inputs.shape) < p2 / p1)
+  inputs_mask2[inputs <= 1] = False  # Do not mask special tokens
+  inputs[inputs_mask2] = mask_token_id  # 
+  inputs_mask3 = inputs_mask2 & (torch.rand(inputs.shape) < p3 / p2)
+  inputs[inputs_mask3] = torch.randint(2, vocab_size-1, (inputs_mask3.sum().item(),))
+
+  # loss weights
+  loss_weights = torch.zeros(inputs.shape)
+  loss_weights[inputs_mask1] = 1
+
+  return inputs, loss_weights
+
+
+class ReplicatorBERT(pl.LightningModule):
+    def __init__(self, blocks_num: int, max_sentence_len: int, vocab_size: int, embedding_size: int,
+                 lr: float=5e-3, mask: bool=False):
+        super().__init__()
+
+        # cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
+        # self.stochastic_embedding = StochasticEmbedding(cfg)
+
+        cfg_sentence = UniformConfig(dim1=max_sentence_len, dim2=max_sentence_len)
+        cfg_embedding = UniformConfig(dim1=embedding_size, dim2=embedding_size)
+        replicator_blocks = [ReplicatorBlock(cfg_sentence, cfg_embedding, mask=False)
+                             for _ in range(blocks_num)]
+        self.replicator_blocks = nn.Sequential(*replicator_blocks)
+
+        cfg = NormalConfig(dim1=vocab_size, dim2=embedding_size, scale=1.)
+        self.stochastic_projection = StochasticProjection(cfg)
+        
+        # weight的N(0,1)分布是否合适，因为后面又softmax操作 ？
+        self.embedding = nn.Embedding(vocab_size, embedding_size, padding_idx=0)
+        # self.embedding.weight = self.stochastic_projection.weight  # tied weight
+        self.softmax = nn.Softmax(dim=-1)
+        self.lr = lr
+        self.vocab_size = vocab_size
+
+    def forward(self, x, masks):
+        inputs_embedding = self.embedding(x)
+        inputs_embedding[torch.logical_not(masks)] = float('-inf')
+        x = torch.nan_to_num(self.softmax(inputs_embedding))
+        # x = self.softmax(inputs_embedding)
+
+        # (batch_size, max_sentence_len)
+        # x = self.stochastic_embedding(x)  
+        # --> (batch_size, max_sentence_len, embedding_size)
+        x = self.replicator_blocks(x)
+        # --> (batch_size, max_sentence_len, embedding_size)
+        x = self.stochastic_projection(x)
+        # --> (batch_size, max_sentence_len, vocab_size)
+        return x
+
+    def training_step(self, batch, batch_idx):
+        x, target, masks = batch
+        x, loss_weights = mask(x, self.vocab_size-1, self.vocab_size, p1=0.2, p2=0.15, p3=0.03)
+        x = self.forward(x, masks)
+        # --> (batch_size, max_sentence_len, vocab_size)
+        tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
+        x = x[tokens_probabilities_exist, :]
+        target = target[tokens_probabilities_exist]
+        loss_weights = loss_weights[tokens_probabilities_exist]
+        if not torch.all(tokens_probabilities_exist == masks):
+            probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
+            probabilities = torch.numel(masks)
+            diff_percent = probabilities_all_zeros / probabilities
+            # logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+            self.log('probabilities_all_zeros', diff_percent)
+        loss = F.cross_entropy(x, target, ignore_index=0, reduction='none', weight=loss_weights)
+        loss = loss.mean()
+        # loss = log_nll_loss(x, target)
+        self.log('train_loss', loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, target, masks = batch
+        x, loss_weights = mask(x, self.vocab_size-1, self.vocab_size, p1=0.2, p2=0.15, p3=0.03)
+        x = self.forward(x, masks)
+        # --> (batch_size, max_sentence_len, vocab_size)
+        tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0
+        x = x[tokens_probabilities_exist, :]
+        target = target[tokens_probabilities_exist]
+        loss_weights = loss_weights[tokens_probabilities_exist]
+        if not torch.all(tokens_probabilities_exist == masks):
+            probabilities_all_zeros = torch.numel(masks[tokens_probabilities_exist != masks])
+            probabilities = torch.numel(masks)
+            diff_percent = probabilities_all_zeros / probabilities
+            # logging.info(f'probabilities\t{probabilities_all_zeros}\t{probabilities}\t{diff_percent}')
+            self.log('probabilities_all_zeros', diff_percent)
+        loss = F.cross_entropy(x, target, ignore_index=0, reduction='none', weight=loss_weights)
+        loss = loss.mean()
+        # loss = log_nll_loss(x, target)
+        self.log('valid_loss', loss)
+        return loss
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr = self.lr)
+        # scheduler = 
+        return optimizer
