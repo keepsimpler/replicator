@@ -346,7 +346,7 @@ class ReplicatorBERT(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, target, masks = batch
-        x, loss_weights = mask(x, 0, self.vocab_size, p1=self.p1, p2=self.p2, p3=self.p3)
+        x, loss_weights = mask(x, self.vocab_size-1, self.vocab_size, p1=self.p1, p2=self.p2, p3=self.p3)
         x = self.forward(x, masks)
         # --> (batch_size, max_sentence_len, vocab_size)
         tokens_probabilities_exist = torch.sum(x, dim=-1).bool()  # Exclude tokens where all probabilities degrade to 0

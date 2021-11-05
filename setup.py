@@ -19,5 +19,7 @@ setuptools.setup(
         "einops >=0.3",
         "pytorch_lightning",
         "transformers",
+        "tensorflow",
+        "tensorflow_datasets"
     ]
 )
