@@ -192,14 +192,12 @@ def mlm_prepare_data(inputs, vocab_size: int, is_prefix: bool, num_special_token
 
 
 class Replicator(pl.LightningModule):
-    def __init__(self, conf: ReplicatorConfig, blocks_num: int, seq_len: int, embedding_size: int, vocab_size: int,
-                 padding_idx: int, is_prefix: bool, num_special_tokens: int, mask_token_id: int,
-                 p1: float = 0.15, p2: float = 0.9, p3: float = 1/9, lr: float = 5e-3):
-        super(ReplicatorBert, self).__init__()
+    def __init__(self, conf: ReplicatorConfig):
+        super(Replicator, self).__init__()
         self.replicator_network = ReplicatorNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
                                                     embedding_size=conf.embedding_size, vocab_size=conf.vocab_size,
                                                     padding_idx=conf.padding_idx)
-        self.conf = config
+        self.conf = conf
 
     def forward(self, x):
         return self.replicator_network(x)
