@@ -132,14 +132,14 @@ class ReplicatorNetwork(nn.Module):
             vocab_size, embedding_size, padding_idx=padding_idx)
         self.softmax = nn.Softmax(dim=-1)
 
-        self.kl_div = nn.KLDivLoss(reduction="batchmean")
+        # self.kl_div = nn.KLDivLoss(reduction="batchmean")
 
     def forward(self, x):
         x = self.embedding(x)
         x_prob = self.softmax(x)
         y_prob = self.replicator_blocks(x_prob)
-        kl_div_loss = self.kl_div(x_prob.log(), y_prob)
-        self.log('kl_div_loss', kl_div_loss)
+        # kl_div_loss = self.kl_div(x_prob.log(), y_prob)
+        # self.log('kl_div_loss', kl_div_loss)
         y = self.projection(y_prob)
         return y
 
