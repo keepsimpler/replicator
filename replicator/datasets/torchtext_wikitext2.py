@@ -40,9 +40,9 @@ class WikiText2Dataset(IterableDataset):
 
     def __iter__(self):
         for i in range(self.sequence_num):
-            yield self.data[:, i * self.seq_len : (i+1) * self.seq_len], \
-                  self.data[:, i * self.seq_len + self.pred_num : (i+1) * self.seq_len + self.pred_num], \
-                  self.masks
+            yield self.data[:, i * self.seq_len : (i+1) * self.seq_len]  # , \
+                #   self.data[:, i * self.seq_len + self.pred_num : (i+1) * self.seq_len + self.pred_num], \
+                #   self.masks
 
     # def __len__(self):
     #     return self.sequence_num
