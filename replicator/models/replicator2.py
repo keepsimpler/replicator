@@ -204,7 +204,7 @@ class Replicator(pl.LightningModule):
 
     def one_step(self, batch, batch_idx):
         inputs = batch[:, :self.conf.seq_len]
-        targets = batch[:, self.conf.predicted_num:self.seq_len +
+        targets = batch[:, self.conf.predicted_num:self.conf.seq_len +
                         self.conf.predicted_num].clone().long()
         if self.conf.p1 > 0:
             inputs, loss_weight = mlm_prepare_data(inputs, vocab_size=self.conf.vocab_size, is_prefix=self.conf.is_prefix,
