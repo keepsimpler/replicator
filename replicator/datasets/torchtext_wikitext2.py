@@ -11,13 +11,15 @@ import pytorch_lightning as pl
 
 
 class WikiText2Dataset(IterableDataset):
-    """"""
+    """
+    
+    """
     def __init__(self, batch_size: int, seq_len: int, split: str, pred_num: int = 1) -> None:
         super().__init__()
         raw_text_iter = WikiText2(split=split)
-        print(len(raw_text_iter))
+        # print(len(raw_text_iter))
         tokenizer = get_tokenizer('basic_english')
-        vocab = build_vocab_from_iterator(map(tokenizer, raw_text_iter), specials=['<pad>', '<unk>'])
+        vocab = build_vocab_from_iterator(map(tokenizer, raw_text_iter), specials=['<pad>', '<unk>', '<mask>'])
         vocab.set_default_index(vocab['<pad>'])
 
         # raw_text_iter was "consumed" by the process of building the vocab,
@@ -59,15 +61,6 @@ class WikiText2DataModule(pl.LightningDataModule):
         self.val_data = WikiText2Dataset(batch_size=self.batch_size, seq_len=self.seq_len, split='valid', pred_num=pred_num)
         self.vocab_size = self.train_data.vocab_size()
 
-    # def mask(self, data):
-    #     inputs, targets, masks = data
-    #     inputs_mask = torch.rand(inputs.shape) < 0.15
-    #     inputs_mask[inputs <= 1] = False  # Do not mask special tokens
-    #     mask_token_id = len(self.train_data.vocab) - 1  # the last token index
-    #     inputs[inputs_mask] = torch.randint(2, mask_token_id, (inputs_mask.sum().item(),))
-    #     return inputs, targets, masks
-
-
     def train_dataloader(self):
         return DataLoader(
             self.train_data,
@@ -86,7 +79,6 @@ class WikiText2DataModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     wikitext2 = WikiText2Dataset(batch_size=2, seq_len=10, split='train')
-    print(len(wikitext2))
-    x, targets = next(iter(wikitext2))
+    x, targets, masks = next(iter(wikitext2))
     print(x.shape, targets.shape)
     print(wikitext2.vocab_size())

@@ -2,6 +2,8 @@ import tensorflow as tf
 # for making tf.data.Dataset to return numpy arrays
 import tensorflow_datasets as tfds
 
+from transformers import GPT2TokenizerFast
+
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data import IterableDataset
 
@@ -49,6 +51,12 @@ class TFRecordIterableDataset(IterableDataset):
         self.batch_size = batch_size
         self._iterator = None
 
+        tokenizer = GPT2TokenizerFast.from_pretrained('gpt2')
+        tokenizer.add_special_tokens({'pad_token': '<pad>', 'unk_token': '<unk>', 'mask_token': '<mask>'})
+        self.tokenizer = tokenizer
+        self.vocab = tokenizer.get_vocab()
+
+
     def __iter__(self):
         self._iterator = iter(self.ds)
         return self._iterator
@@ -62,6 +70,9 @@ class TFRecordIterableDataset(IterableDataset):
             return num_batches
         else:
             return num_batches + 1
+
+    def vocab_size(self):
+        return len(self.vocab)
 
 
 class TFRecordDataModule(pl.LightningDataModule):
