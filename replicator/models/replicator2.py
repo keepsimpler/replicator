@@ -245,6 +245,6 @@ class Replicator(pl.LightningModule):
         return outputs
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.conf.lr)
         # scheduler =
         return optimizer
