@@ -120,11 +120,11 @@ class Projection(nn.Module):
 
 class ReplicatorNetwork(nn.Module):
     def __init__(self, blocks_num: int, seq_len: int, embedding_size: int, vocab_size: int,
-                 padding_idx: int):
+                 padding_idx: int, mask:bool):
         super(ReplicatorNetwork, self).__init__()
 
         replicator_blocks = [ReplicatorBlock(
-            seq_len, embedding_size, mask=False) for _ in range(blocks_num)]
+            seq_len, embedding_size, mask=mask) for _ in range(blocks_num)]
         self.replicator_blocks = nn.Sequential(*replicator_blocks)
 
         self.projection = Projection(embedding_size, vocab_size)
@@ -196,7 +196,7 @@ class Replicator(pl.LightningModule):
         super(Replicator, self).__init__()
         self.replicator_network = ReplicatorNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
                                                     embedding_size=conf.embedding_size, vocab_size=conf.vocab_size,
-                                                    padding_idx=conf.padding_idx)
+                                                    padding_idx=conf.padding_idx, mask=conf.mask)
         self.conf = conf
 
     def forward(self, x):
