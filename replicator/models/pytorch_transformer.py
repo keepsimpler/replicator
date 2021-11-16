@@ -62,7 +62,7 @@ class TransformerModel(nn.Module):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
         self.decoder.bias.data.zero_()
-        self.decoder.weight = self.encoder.weight # .data.uniform_(-initrange, initrange)
+        self.decoder.weight.data.uniform_(-initrange, initrange) # = self.encoder.weight 
 
     def forward(self, src: Tensor, targets: Tensor=None, masks: Tensor=None) -> Tensor:
         """
