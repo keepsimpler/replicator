@@ -41,21 +41,67 @@ ReplicatorConfigOpenwebtext = partial(ReplicatorConfig, vocab_size=50260,
 ReplicatorConfigWikitext2 = partial(ReplicatorConfig, vocab_size=28784,
                                     padding_idx=0, is_prefix=True, num_special_tokens=3, mask_token_id=2)
 
+class ReplicatorDerivLayer(nn.Module):
+    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False):
+        super(ReplicatorDerivLayer, self).__init__()
+        weight1 = torch.Tensor(embedding_size, embedding_size)
+        nn.init.xavier_uniform_(weight1)
+        self.weight1 = Parameter(weight1)
+        weight2 = torch.Tensor(embedding_size, embedding_size)
+        nn.init.xavier_uniform_(weight2)
+        self.weight2 = Parameter(weight2)
+        self.mask = mask
+        if mask:
+            mask_matrix = torch.triu(torch.ones(
+                seq_len, seq_len, dtype=torch.bool
+            ), diagonal=1)
+            self.register_buffer("mask_matrix", mask_matrix)
+
+    def forward(self, x):
+        # (batch_size, embedding_size, seq_len)
+        fitnesses1 = torch.einsum('b e s, e f -> b f s', x, self.weight1)
+        fitnesses2 = torch.einsum('b f s, e f -> b e s', x, self.weight2)
+        weight = torch.einsum('b e s, b e t -> b s t', fitnesses1, fitnesses2)
+        if self.mask:
+            weight = weight.masked_fill(self.mask_matrix, 0)
+        # --> (batch_size, seq_len, seq_len)
+        # 1. compute Wx, matrix-vector product between W and x
+        fitnesses = torch.einsum('b s t, b e t -> b e s', weight, x)
+        # 2. compute x^T Wx, dot product between x and Ax
+        avg_fitness = torch.einsum('b e s, b e s -> b e', x, fitnesses)
+        # 3. unsqueeze at the last dimension,
+        # for broadcasting in the following substract operator
+        avg_fitness = avg_fitness.unsqueeze(dim=-1)
+        # 4. compute Wx - x^T Wx, get the net fitnesses
+        net_fitnesses = fitnesses - avg_fitness
+        # 5. compute  derivative of x
+        x_derivative = x * net_fitnesses
+        # 6. Eluer method of ode
+        x_next = x + x_derivative
+        # 7. remove all negative values
+        x_next = F.relu(x_next)
+        return x_next
+
 
 class ReplicatorLayer(nn.Module):
     def __init__(self, prob_space_size: int, mask: bool = False):
         super(ReplicatorLayer, self).__init__()
         weight = torch.Tensor(prob_space_size, prob_space_size)
         nn.init.xavier_uniform_(weight)
+        self.mask = mask
         if mask:
             mask_matrix = torch.triu(torch.ones(
                 prob_space_size, prob_space_size, dtype=torch.bool), diagonal=1)
-            weight.masked_fill_(mask_matrix, 0)
+            self.register_buffer("mask_matrix", mask_matrix)
         self.weight = Parameter(weight)
 
     def forward(self, x):
+        if self.mask:
+            weight = self.weight.masked_fill(self.mask_matrix, 0)
+        else:
+            weight = self.weight
         # 1. compute Wx, matrix-vector product between W and x
-        fitnesses = torch.einsum('m n, i j n -> i j m', self.weight, x)
+        fitnesses = torch.einsum('m n, i j n -> i j m', weight, x)
         # 2. compute x^T Wx, dot product between x and Ax
         avg_fitness = torch.einsum('i j m, i j m -> i j', x, fitnesses)
         # 3. unsqueeze at the last dimension,
