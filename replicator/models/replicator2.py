@@ -82,6 +82,86 @@ class ReplicatorDerivLayer(nn.Module):
         x_next = F.relu(x_next)
         return x_next
 
+class ReplicatorSeqLayer(nn.Module):
+    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False):
+        super(ReplicatorSeqLayer, self).__init__()
+        embedding_weight = torch.Tensor(embedding_size, embedding_size)
+        nn.init.xavier_uniform_(embedding_weight)
+        self.embedding_weight = Parameter(embedding_weight)
+        seq_weight = torch.Tensor(seq_len, seq_len)
+        nn.init.xavier_uniform_(seq_weight)
+        self.seq_weight = Parameter(seq_weight)
+        self.mask = mask
+        if mask:
+            mask_matrix = torch.triu(torch.ones(
+                seq_len, seq_len, dtype=torch.bool
+            ), diagonal=1)
+            self.register_buffer("mask_matrix", mask_matrix)
+
+    def forward(self, x):
+        # (batch_size, embedding_size, seq_len)
+        x_embedding_weight = torch.einsum('b e s, f e -> b f s', x, self.embedding_weight)
+        if self.mask:
+            seq_weight = self.seq_weight.masked_fill(self.mask_matrix, 0)
+        else:
+            seq_weight = self.seq_weight
+        # 1. compute Wx, matrix-vector product between W and x
+        fitnesses = torch.einsum('s t, b e t -> b e s', seq_weight, x_embedding_weight)
+        # 2. compute x^T Wx, dot product between x and Ax
+        avg_fitness = torch.einsum('b e s, b e s -> b e', x, fitnesses)
+        # 3. unsqueeze at the last dimension,
+        # for broadcasting in the following substract operator
+        avg_fitness = avg_fitness.unsqueeze(dim=-1)
+        # 4. compute Wx - x^T Wx, get the net fitnesses
+        net_fitnesses = fitnesses - avg_fitness
+        # 5. compute  derivative of x
+        x_derivative = x * net_fitnesses
+        # 6. Eluer method of ode
+        x_next = x + x_derivative
+        # 7. remove all negative values
+        x_next = F.relu(x_next)
+        return x_next
+
+class ReplicatorEmbeddingLayer(nn.Module):
+    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False):
+        super(ReplicatorEmbeddingLayer, self).__init__()
+        embedding_weight = torch.Tensor(embedding_size, embedding_size)
+        nn.init.xavier_uniform_(embedding_weight)
+        self.embedding_weight = Parameter(embedding_weight)
+        seq_weight = torch.Tensor(seq_len, seq_len)
+        nn.init.xavier_uniform_(seq_weight)
+        self.seq_weight = Parameter(seq_weight)
+        self.mask = mask
+        if mask:
+            mask_matrix = torch.triu(torch.ones(
+                seq_len, seq_len, dtype=torch.bool
+            ), diagonal=1)
+            self.register_buffer("mask_matrix", mask_matrix)
+
+    def forward(self, x):
+        # (batch_size, seq_len, embedding_size)
+        if self.mask:
+            seq_weight = self.seq_weight.masked_fill(self.mask_matrix, 0)
+        else:
+            seq_weight = self.seq_weight
+        x_seq_weight = torch.einsum('b s e, t s -> b t e', x, seq_weight)
+        # 1. compute Wx, matrix-vector product between W and x
+        fitnesses = torch.einsum('e f, b t f -> b t e', self.embedding_weight, x_seq_weight)
+        # 2. compute x^T Wx, dot product between x and Ax
+        avg_fitness = torch.einsum('b e s, b e s -> b e', x, fitnesses)
+        # 3. unsqueeze at the last dimension,
+        # for broadcasting in the following substract operator
+        avg_fitness = avg_fitness.unsqueeze(dim=-1)
+        # 4. compute Wx - x^T Wx, get the net fitnesses
+        net_fitnesses = fitnesses - avg_fitness
+        # 5. compute  derivative of x
+        x_derivative = x * net_fitnesses
+        # 6. Eluer method of ode
+        x_next = x + x_derivative
+        # 7. remove all negative values
+        x_next = F.relu(x_next)
+        return x_next
+
 
 class ReplicatorLayer(nn.Module):
     def __init__(self, prob_space_size: int, mask: bool = False):
@@ -164,6 +244,32 @@ class Projection(nn.Module):
         return x
 
 
+class ReplicatorEmbeddingNetwork(nn.Module):
+    def __init__(self, blocks_num: int, seq_len: int, embedding_size: int, vocab_size: int,
+                 padding_idx: int, mask:bool):
+        super(ReplicatorEmbeddingNetwork, self).__init__()
+
+        replicator_blocks = [ReplicatorEmbeddingLayer(
+            seq_len=seq_len, embedding_size=embedding_size, mask=mask) for _ in range(blocks_num)]
+        self.replicator_blocks = nn.Sequential(*replicator_blocks)
+
+        self.projection = Projection(embedding_size, vocab_size)
+        self.embedding = nn.Embedding(
+            vocab_size, embedding_size, padding_idx=padding_idx)
+        self.softmax = nn.Softmax(dim=-1)
+
+        # self.kl_div = nn.KLDivLoss(reduction="batchmean")
+
+    def forward(self, x):
+        x = self.embedding(x)
+        x_prob = self.softmax(x)
+        y_prob = self.replicator_blocks(x_prob)
+        # kl_div_loss = self.kl_div(x_prob.log(), y_prob)
+        # self.log('kl_div_loss', kl_div_loss)
+        y = self.projection(y_prob)
+        return y
+
+
 class ReplicatorNetwork(nn.Module):
     def __init__(self, blocks_num: int, seq_len: int, embedding_size: int, vocab_size: int,
                  padding_idx: int, mask:bool):
@@ -240,7 +346,7 @@ def mlm_prepare_data(inputs, vocab_size: int, is_prefix: bool, num_special_token
 class Replicator(pl.LightningModule):
     def __init__(self, conf: ReplicatorConfig):
         super(Replicator, self).__init__()
-        self.replicator_network = ReplicatorNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
+        self.replicator_network = ReplicatorEmbeddingNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
                                                     embedding_size=conf.embedding_size, vocab_size=conf.vocab_size,
                                                     padding_idx=conf.padding_idx, mask=conf.mask)
         self.conf = conf
