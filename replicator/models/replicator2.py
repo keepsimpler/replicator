@@ -343,10 +343,69 @@ def mlm_prepare_data(inputs, vocab_size: int, is_prefix: bool, num_special_token
     return inputs, loss_weights
 
 
+class ReplicatorEmbedding(pl.LightningModule):
+    def __init__(self, conf: ReplicatorConfig):
+        super(ReplicatorEmbedding, self).__init__()
+        self.replicator_network = ReplicatorEmbeddingNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
+                                                    embedding_size=conf.embedding_size, vocab_size=conf.vocab_size,
+                                                    padding_idx=conf.padding_idx, mask=conf.mask)
+        self.conf = conf
+
+    def forward(self, x):
+        return self.replicator_network(x)
+
+    def one_step(self, batch, batch_idx):
+        inputs = batch[:, :self.conf.seq_len]
+        targets = batch[:, self.conf.predicted_num:self.conf.seq_len +
+                        self.conf.predicted_num].clone().long()
+        if self.conf.p1 > 0:
+            inputs, loss_weight = mlm_prepare_data(inputs, vocab_size=self.conf.vocab_size, is_prefix=self.conf.is_prefix,
+                                                   num_special_tokens=self.conf.num_special_tokens,
+                                                   mask_token_id=self.conf.mask_token_id, p1=self.conf.p1,
+                                                   p2=self.conf.p2, p3=self.conf.p3)
+        outputs = self.forward(inputs)
+
+        # --> (batch_size, max_sentence_len, vocab_size)
+        # Exclude tokens where all probabilities degrade to 0
+        tokens_probabilities_exist = torch.sum(outputs, dim=-1).bool()
+        outputs = outputs[tokens_probabilities_exist, :]
+        targets = targets[tokens_probabilities_exist]
+        if self.conf.p1 > 0:
+            loss_weight = loss_weight[tokens_probabilities_exist]
+            loss = F.cross_entropy(
+                outputs, targets, reduction='none') * loss_weight
+            loss = loss.sum() / loss_weight.sum()
+        else:
+            loss = F.cross_entropy(outputs, targets)
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        loss = self.one_step(batch, batch_idx)
+        self.log('train_loss', loss)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        loss = self.one_step(batch, batch_idx)
+        self.log('valid_loss', loss)
+        return loss
+
+    def predict_step(self, batch, batch_idx):
+        inputs = batch[:, :self.conf.seq_len]
+        targets = inputs.clone()
+        inputs, loss_weight = self.mlm_prepare_data(inputs)
+        outputs = self.forward(inputs)
+        return outputs
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.conf.lr)
+        # scheduler =
+        return optimizer
+
+
 class Replicator(pl.LightningModule):
     def __init__(self, conf: ReplicatorConfig):
         super(Replicator, self).__init__()
-        self.replicator_network = ReplicatorEmbeddingNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
+        self.replicator_network = ReplicatorNetwork(blocks_num=conf.blocks_num, seq_len=conf.seq_len,
                                                     embedding_size=conf.embedding_size, vocab_size=conf.vocab_size,
                                                     padding_idx=conf.padding_idx, mask=conf.mask)
         self.conf = conf
