@@ -85,7 +85,7 @@ class TFRecordDataModule(pl.LightningDataModule):
         self.train_data = TFRecordIterableDataset(
             self.train_filenames, self.tfrecord_parse_func, batch_size=self.batch_size)
         self.val_data = TFRecordIterableDataset(
-            self.train_filenames, self.tfrecord_parse_func, batch_size=self.batch_size)
+            self.val_filenames, self.tfrecord_parse_func, batch_size=self.batch_size)
         # self.vocab_size = self.train_data.vocab_size()
 
     def train_dataloader(self):

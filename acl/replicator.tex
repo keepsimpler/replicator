@@ -73,13 +73,16 @@
 
 % Language modeling is usually framed as unsupervised distribution estimation for a set of 
 
+\subsection{Language Model}
+Let us define a discrete random variable $x$ on vocabulary $X$ where $X = \{1, \ldots, N \}$. This random variable models the probability of a token occurring in the vocabulary. Therefore, we can write $x_t^i = P_t (x = i) $ represents the probability of a token equal to $i$ at time step $t$. $x_t$ is the distribution of 
+
 Given a sequence of words $(x_1, x_2, \ldots, x_T)$, the goal of a language model is to estimate the joint probability of the sequence:
 \begin{equation}
   P(x_1, x_2, \ldots, x_T).
 \end{equation}
 Since language has a sequential ordering, it is common to factorize the joint probability of the sequence as the product of conditional probabilities:
 \begin{equation}
-  P(x_1, x_2, \ldots, x_T) = \prod_{t=1}^n P(x_t \vert x_1, \ldots, x_{t-1}).
+  P(x_1, x_2, \ldots, x_T) = \prod_{t=1}^T P(x_t \vert x_1, \ldots, x_{t-1}).
 \end{equation}
 
 Thus, the efficient modeling of conditional probabilities of the next
@@ -91,7 +94,7 @@ Although the neural models computing these conditional probabilities have improv
 We here first using replicator dynamics to directly model the conditional probabilities.
 
 \subsection{Replicator Equation}
-In the field of evolutionary game theory, the replicator equation is defined as follows. Let $x_i$ is the proportion of type $i$ in the population, $(x_1, x_2, \ldots, x_n)$ is the vector of the distribution of types in the population, and $\sum_{i=1}^n x_i = 1$. The continuous form of replicator equation can be written in the form:
+In the field of evolutionary game theory, the replicator equation is defined as follows. Let $x_i$ is the proportion of type $i$ in the population, $(x_1, x_2, \ldots, x_n)$ is the vector of the distribution of types in the population, and $\sum_{i=1}^n x_i = 1$. Then the continuous form of replicator equation can be written in the form:
 \begin{equation}
   \dot{x_i} = x_i \left((Ax)_i - x^T A x \right) ,
 \end{equation}
@@ -99,7 +102,7 @@ where the payoff matrix $A$ holds all the fitness information for the population
 
 Similar to the continuous form, the discrete form of the replicator equation can be written as:
 \begin{equation}
-  x_i^{'} = x_i + x_i \left[ (Ax)_i - x^T A x \right] .
+  x_t^{i} = x_{t-1}^i + x_{t-1}^i \left[ (Ax_t)_i - x_t^T A x_t \right] .
 \end{equation}
 
 \subsection{Bayesian Inference}
