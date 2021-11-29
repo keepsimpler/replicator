@@ -123,7 +123,7 @@ class ReplicatorSeqLayer(nn.Module):
         return x_next
 
 class ReplicatorEmbeddingLayer(nn.Module):
-    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False):
+    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False, step_size: float = 1.):
         super(ReplicatorEmbeddingLayer, self).__init__()
         embedding_weight = torch.Tensor(embedding_size, embedding_size)
         nn.init.xavier_uniform_(embedding_weight)
@@ -137,6 +137,8 @@ class ReplicatorEmbeddingLayer(nn.Module):
                 seq_len, seq_len, dtype=torch.bool
             ), diagonal=1)
             self.register_buffer("mask_matrix", mask_matrix)
+
+        self.step_size = Parameter(torch.tensor(step_size))
 
     def forward(self, x):
         # (batch_size, seq_len, embedding_size)
@@ -157,16 +159,16 @@ class ReplicatorEmbeddingLayer(nn.Module):
         # 5. compute  derivative of x
         x_derivative = x * net_fitnesses
         # 6. Eluer method of ode
-        x_next = x + x_derivative
+        x_next = x + self.step_size * x_derivative
         # 7. remove all negative values
         x_next = F.relu(x_next)
 
         # 2. marginal probability of the last dimension
-        marginal_prob = x_next.sum(dim=-1, keepdim=True)
+        # marginal_prob = x_next.sum(dim=-1, keepdim=True)
         # 3. divide by marginal probability to get the new probability dimension
-        x_next = torch.divide(x_next, marginal_prob)
+        # x_next = torch.divide(x_next, marginal_prob)
         # 4. avoid divided by zero
-        x_next = torch.nan_to_num(x_next)
+        # x_next = torch.nan_to_num(x_next)
 
 
         return x_next
