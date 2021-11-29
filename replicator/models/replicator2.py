@@ -160,6 +160,15 @@ class ReplicatorEmbeddingLayer(nn.Module):
         x_next = x + x_derivative
         # 7. remove all negative values
         x_next = F.relu(x_next)
+
+        # 2. marginal probability of the last dimension
+        marginal_prob = x_next.sum(dim=-1, keepdim=True)
+        # 3. divide by marginal probability to get the new probability dimension
+        x_next = torch.divide(x_next, marginal_prob)
+        # 4. avoid divided by zero
+        x_next = torch.nan_to_num(x_next)
+
+
         return x_next
 
 
