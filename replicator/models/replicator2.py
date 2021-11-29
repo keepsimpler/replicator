@@ -123,7 +123,7 @@ class ReplicatorSeqLayer(nn.Module):
         return x_next
 
 class ReplicatorEmbeddingLayer(nn.Module):
-    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False, step_size: float = 1.):
+    def __init__(self, seq_len: int, embedding_size: int, mask: bool = False, step_size: float = 0.):
         super(ReplicatorEmbeddingLayer, self).__init__()
         embedding_weight = torch.Tensor(embedding_size, embedding_size)
         nn.init.xavier_uniform_(embedding_weight)
